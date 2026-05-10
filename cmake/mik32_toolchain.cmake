@@ -47,7 +47,7 @@ set(CMAKE_ASM_FLAGS_INIT ${ASM_FLAGS})
 # Set linker flags
 string(CONCAT LINK_FLAGS
     " -Wl,-Map,mik32_firmware.map"
-    " -T${CMAKE_SOURCE_DIR}/hardware/mik32v2-shared/ldscripts/eeprom.ld"
+    " -T${CMAKE_SOURCE_DIR}/hardware/mik32v2-shared/ldscripts/spifi.ld"
     " -Xlinker --gc-sections"
     " -nostartfiles"
 )

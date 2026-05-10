@@ -13,11 +13,12 @@ RUN apt install -y --no-install-recommends \
     openocd \
     picocom \
     zsh \
-    vim \
+    clangd-15 \
     clang-format \
     && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    ln -s /usr/bin/clangd-15 /usr/bin/clangd
 
 ENV GIT_SSL_NO_VERIFY=true
 

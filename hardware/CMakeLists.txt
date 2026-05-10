@@ -47,13 +47,13 @@ add_library(mik32_hal
 target_include_directories(mik32_hal
     PUBLIC
         mik32-hal/peripherals/Include
-
+        mik32-hal/utilities/Include
     PRIVATE
         mik32-hal/core/Include
-        mik32-hal/utilities/Include
 )
 
 target_link_libraries(mik32_hal
     PUBLIC
         mik32_shared
 )
+
