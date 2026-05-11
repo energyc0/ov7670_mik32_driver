@@ -7,7 +7,7 @@
 // IMPORTANT: #include ALL of the arch-specific .h files here.
 // They have #ifdef checks to only take effect on the active architecture.
 #include "arch/mik32.h"
-
+#include <stdbool.h>
 
 /** Status codes returned by some functions */
 typedef enum {

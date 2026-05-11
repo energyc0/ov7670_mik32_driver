@@ -6,5 +6,5 @@ project("YADRO project" C CXX ASM)
 enable_language(C CXX ASM)
 
 add_subdirectory(hardware)
-add_subdirectory(libs)
+add_subdirectory(ov7670)
 add_subdirectory(sources)

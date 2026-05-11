@@ -8,7 +8,7 @@ message(STATUS "Looking for ldscript: ${CMAKE_SOURCE_DIR}/hardware/mik32v2-share
 target_link_libraries(${FIRMWARE_NAME}
     PRIVATE
         mik32_hal
-        camera_lib
+        mik32_ov7670_lib
 )
 
 target_link_directories(${FIRMWARE_NAME}
