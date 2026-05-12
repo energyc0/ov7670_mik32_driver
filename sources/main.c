@@ -1,33 +1,129 @@
+#include "arch/mik32.h"
 #include "mik32_hal_gpio.h"
 #include "mik32_hal_pcc.h"
 #include "mik32_hal_usart.h"
 #include "mik32_hal_i2c.h"
 #include "mik32_hal_ssd1306.h"
+#include "ov7670.h"
+#include "arch/sccb.h"
+#include "arch/uart.h"
 
-void SystemClock_Config();
-void GPIO_Init();
-void I2C_Init();
-void USART_Init();
+/* 
+ * Pins for ov7670 on MIK32 ELBEAR UNO:
+ * D0-D7 are D4-D11
+ * SIOC is SCL
+ * SIOD is SDA
+ * HREF is A4
+ * VSYNC is A5
+ * XCLK is D13
+ * PCLK is D3
+ * RESET is 3.3V
+ * PWDN is GND
+ */
+
+static Pin scl = {
+    .gpio = GPIO_1,
+    .pin_num = 13
+};
+static Pin sda = {
+    .gpio = GPIO_1,
+    .pin_num = 12
+};
+
+static Pin d0 = {
+    .gpio = GPIO_0,
+    .pin_num = 8
+};
+static Pin d1 = {
+    .gpio = GPIO_0,
+    .pin_num = 1
+};
+static Pin d2 = {
+    .gpio = GPIO_0,
+    .pin_num = 2
+};
+static Pin d3 = {
+    .gpio = GPIO_1,
+    .pin_num = 8
+};
+static Pin d4 = {
+    .gpio = GPIO_1,
+    .pin_num = 9
+};
+static Pin d5 = {
+    .gpio = GPIO_0,
+    .pin_num = 3
+};
+static Pin d6 = {
+    .gpio = GPIO_1,
+    .pin_num = 3
+};
+static Pin d7 = {
+    .gpio = GPIO_1,
+    .pin_num = 1
+};
+static Pin xclk = {
+    .gpio = XCLK_PIN_GPIO,
+    .pin_num = XCLK_PIN_NUM
+};
+static Pin pclk = {
+    .gpio = PCLK_PIN_GPIO,
+    .pin_num = PCLK_PIN_NUM
+};
+static Pin vsync = {
+    .gpio = GPIO_1,
+    .pin_num = 5
+};
+static Pin href = {
+    .gpio = GPIO_1,
+    .pin_num = 7
+};
+
+static void SystemClock_Config();
+static void GPIO_Init();
+static void Pins_Init(OV7670_pins* pins);
+static void Arch_Init(OV7670_arch* arch);
 
 USART_HandleTypeDef husart0;
-I2C_HandleTypeDef hi2c;
 
 int main()
 {
     SystemClock_Config();
     GPIO_Init();
     USART_Init();
-    I2C_Init();
+    SCCB_Init();
 
-    HAL_SSD1306_Init(&hi2c, 0xFF);
+    OV7670_pins pins;
+    Pins_Init(&pins);
+    OV7670_arch arch;
+    Arch_Init(&arch);
 
+    OV7670_host host;
+    host.pins = &pins;
+    host.arch = &arch;
+
+    if (OV7670_begin(&host, OV7670_COLOR_YUV, OV7670_SIZE_DIV16, 30.0) != OV7670_STATUS_OK) {
+        HAL_USART_Print(&husart0, "Failed to initialize camera!", USART_TIMEOUT_DEFAULT);
+        while (1);
+    }
+
+    /* Debug prints */
+    uint8_t pid = MIK32_OV7670_read_register(OV7670_REG_PID); // Should be 0x76
+    uint8_t ver = MIK32_OV7670_read_register(OV7670_REG_VER); // Should be 0x73
+    USART_Print("PID: ");
+    USART_PrintInt(pid);
+    USART_Print(" and VER: ");
+    USART_PrintInt(ver);
+    USART_Print("\r\n");
+    
     while (1) {
         GPIO_2->OUTPUT ^= GPIO_PIN_7;
-        HAL_DelayMs(100);
+        
+        HAL_DelayMs(1000);
     }
 }
 
-void SystemClock_Config(void)
+static void SystemClock_Config()
 {
     PCC_InitTypeDef PCC_OscInit = { 0 };
 
@@ -45,7 +141,7 @@ void SystemClock_Config(void)
     HAL_PCC_Config(&PCC_OscInit);
 }
 
-void GPIO_Init()
+static void GPIO_Init()
 {
     GPIO_InitTypeDef GPIO_InitStruct = { 0 };
 
@@ -60,66 +156,26 @@ void GPIO_Init()
     HAL_GPIO_Init(GPIO_2, &GPIO_InitStruct);
 }
 
-void I2C_Init()
+static void Pins_Init(OV7670_pins* pins)
 {
-    hi2c.Instance = I2C_1;
-    hi2c.Init.Mode = HAL_I2C_MODE_MASTER;
-
-    hi2c.Init.DigitalFilter = I2C_DIGITALFILTER_OFF;
-    hi2c.Init.AnalogFilter = I2C_ANALOGFILTER_DISABLE;
-    hi2c.Init.AutoEnd = I2C_AUTOEND_ENABLE;
-
-    hi2c.Clock.PRESC = 5;
-    hi2c.Clock.SCLDEL = 15;
-    hi2c.Clock.SDADEL = 15;
-    hi2c.Clock.SCLH = 15;
-    hi2c.Clock.SCLL = 15;
-
-    if (HAL_I2C_Init(&hi2c) == HAL_OK)
-    {
-        HAL_USART_Print(&husart0, "I2C init OK\r\n", USART_TIMEOUT_DEFAULT);
-    }
+    pins->sda = &sda;
+    pins->scl = &scl;
+    pins->enable = NULL; // Not set 
+    pins->reset = NULL; // Not set
+    pins->vsync = &vsync;
+    pins->hsync = &href;
+    pins->xclk = &xclk;
+    pins->pclk = &pclk;
+    pins->data[0] = &d0;
+    pins->data[1] = &d1;
+    pins->data[2] = &d2;
+    pins->data[3] = &d3;
+    pins->data[4] = &d4;
+    pins->data[5] = &d5;
+    pins->data[6] = &d6;
+    pins->data[7] = &d7;
 }
 
-void USART_Init()
+static void Arch_Init(OV7670_arch* arch)
 {
-    husart0.Instance = UART_0;
-    husart0.transmitting = Enable;
-    husart0.receiving = Enable;
-    husart0.frame = Frame_8bit;
-    husart0.parity_bit = Disable;
-    husart0.parity_bit_inversion = Disable;
-    husart0.bit_direction = LSB_First;
-    husart0.data_inversion = Disable;
-    husart0.tx_inversion = Disable;
-    husart0.rx_inversion = Disable;
-    husart0.swap = Disable;
-    husart0.lbm = Disable;
-    husart0.stop_bit = StopBit_1;
-    husart0.mode = Asynchronous_Mode;
-    husart0.xck_mode = XCK_Mode3;
-    husart0.last_byte_clock = Disable;
-    husart0.overwrite = Disable;
-    husart0.rts_mode = AlwaysEnable_mode;
-    husart0.dma_tx_request = Disable;
-    husart0.dma_rx_request = Disable;
-    husart0.channel_mode = Duplex_Mode;
-    husart0.tx_break_mode = Disable;
-    husart0.Interrupt.ctsie = Disable;
-    husart0.Interrupt.eie = Disable;
-    husart0.Interrupt.idleie = Disable;
-    husart0.Interrupt.lbdie = Disable;
-    husart0.Interrupt.peie = Disable;
-    husart0.Interrupt.rxneie = Disable;
-    husart0.Interrupt.tcie = Disable;
-    husart0.Interrupt.txeie = Disable;
-    husart0.Modem.rts = Disable; // out
-    husart0.Modem.cts = Disable; // in
-    husart0.Modem.dtr = Disable; // out
-    husart0.Modem.dcd = Disable; // in
-    husart0.Modem.dsr = Disable; // in
-    husart0.Modem.ri = Disable; // in
-    husart0.Modem.ddis = Disable; // out
-    husart0.baudrate = 115200;
-    HAL_USART_Init(&husart0);
 }

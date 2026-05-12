@@ -1,3 +1,5 @@
+#include "arch/mik32.h"
+#include "arch/uart.h"
 #include "ov7670.h"
 
 #include "gpio.h"
@@ -10,8 +12,16 @@
 #include "sccb.h"
 #include <stdint.h>
 
-static void timer_init(OV7670_host* host);
-static void i2c_init(OV7670_host* host);
+static GPIO_TypeDef* data_gpios[8];
+static int32_t data_pin_bits[8];
+
+static void timer_init();
+static void configure_pins(OV7670_host* host);
+
+static inline uint8_t ov7670_read_pixel()
+{
+    return 0;
+}
 
 static GPIO_TypeDef* gpios[20] = {
     GPIO_0, //0
@@ -59,98 +69,145 @@ static int8_t pin_bits[20] = {
     13 //19
 };
 
-void pinModeOutput(OV7670_pin* pin)
+void pinModeOutput(OV7670_pin pin)
 {
-    pin->gpio->DIRECTION_OUT = pin->pin_bit;
+    pin->gpio->DIRECTION_OUT = (1 << pin->pin_num);
 }
 
-void digitalWrite(OV7670_pin* pin, uint8_t hi)
+void digitalWrite(OV7670_pin pin, uint8_t hi)
 {
     if (hi) 
-        pin->gpio->SET = pin->pin_bit;
+        pin->gpio->SET = (1 << pin->pin_num);
     else
-        pin->gpio->CLEAR = pin->pin_bit;
+        pin->gpio->CLEAR = (1 << pin->pin_num);
 }
 
 OV7670_status OV7670_arch_begin(OV7670_host* host) {
-    i2c_init(host);
-    timer_init(host);
+    configure_pins(host);
+    timer_init();
     
     return OV7670_STATUS_OK;
 }
 
-static void timer_init(OV7670_host* host)
+static void timer_init()
 {
-    /* Connect pins 1 and 2 to TIMER2_0_CH0 */
-    PAD_CONFIG->PORT_1_CFG |= 2 << (PWM_PIN1_NUM * 2);
-    PAD_CONFIG->PORT_1_CFG |= 2 << (PWM_PIN2_NUM * 2);
-    /* Turn on TIMER32_2 */
+    /* 
+     * Connect XCLK pin to TIMER2_0_CH0 for clock signals generation
+     * XCLK is PORT_1_0 pin.
+     */
+    PAD_CONFIG->PORT_1_CFG |= 2 << (XCLK_PIN_NUM * 2);
+    /* Configure timer */
     PM->CLK_APB_P_SET = PM_CLOCK_APB_P_TIMER32_2_M;
-    TIMER32_2->ENABLE = 0;
-    TIMER32_2->TOP = PWM_PERIOD_TICKS;
-    TIMER32_2->PRESCALER = 0;
-    TIMER32_2->CONTROL =
+    XCLK_TIMER->ENABLE = 0;
+    XCLK_TIMER->TOP = OV7670_XCLK_HZ;
+    XCLK_TIMER->PRESCALER = 0;
+    XCLK_TIMER->CONTROL =
         TIMER32_CONTROL_MODE_UP_M | TIMER32_CONTROL_CLOCK_PRESCALER_M;
-    TIMER32_2->INT_MASK = 0;
-    TIMER32_2->INT_CLEAR = 0xFFFFFFFF;
+    XCLK_TIMER->INT_MASK = 0;
+    XCLK_TIMER->INT_CLEAR = 0xFFFFFFFF;
 
-    TIMER32_2->CHANNELS[PWM_PIN1_TIMER_CHANNEL].OCR = PWM_DUTY_CYCLE_TICKS(led1_duty_cycle_percent);
-    TIMER32_2->CHANNELS[PWM_PIN1_TIMER_CHANNEL].CNTRL =
+    /* Duty = 50% */
+    XCLK_TIMER->CHANNELS[XCLK_TIMER_CHANNEL].OCR = OV7670_XCLK_HZ/2;
+    XCLK_TIMER->CHANNELS[XCLK_TIMER_CHANNEL].CNTRL =
         TIMER32_CH_CNTRL_MODE_PWM_M | TIMER32_CH_CNTRL_ENABLE_M;
 
-    TIMER32_2->CHANNELS[PWM_PIN2_TIMER_CHANNEL].OCR = PWM_DUTY_CYCLE_TICKS(led2_duty_cycle_percent);;
-    TIMER32_2->CHANNELS[PWM_PIN2_TIMER_CHANNEL].CNTRL =
-        TIMER32_CH_CNTRL_MODE_PWM_M | TIMER32_CH_CNTRL_ENABLE_M;
+    XCLK_TIMER->ENABLE = 1;
 
-    TIMER32_2->ENABLE = 1;
-}
+    /* 
+     * Connect PCLK pin to TIMER1_0_CH0 for clock signals generation
+     * PCLK is PORT_0_0 pin.
+     */
+    PAD_CONFIG->PORT_0_CFG |= 2 << (PCLK_PIN_NUM * 2);
+    /* Configure timer */
+    PM->CLK_APB_P_SET = PM_CLOCK_APB_P_TIMER32_1_M;
+    PCLK_TIMER->ENABLE = 0;
+    PCLK_TIMER->TOP = OV7670_PCLK_HZ;
+    PCLK_TIMER->PRESCALER = 0;
+    PCLK_TIMER->CONTROL =
+        TIMER32_CONTROL_MODE_UP_M | TIMER32_CONTROL_CLOCK_PRESCALER_M;
+    PCLK_TIMER->INT_MASK = 0;
+    PCLK_TIMER->INT_CLEAR = 0xFFFFFFFF;
     
+    /* Duty = 50% */
+    PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].ICR = OV7670_PCLK_HZ/2;
+    /* Capture mode */
+    PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].CNTRL =
+        (TIMER32_CH_CNTRL_MODE_CAPTURE_M 
+            | TIMER32_CH_CNTRL_ENABLE_M 
+            | TIMER32_CH_CNTRL_CAPTURE_POS_M) 
+            & (~TIMER32_CH_CNTRL_DIR_M);
+    PCLK_TIMER->ENABLE = 1;
+}
 
-static void i2c_init(OV7670_host* host)
+static void configure_pins(OV7670_host* host)
 {
-    host->arch->hi2c->Instance = I2C_1;
-    host->arch->hi2c->Init.Mode = HAL_I2C_MODE_MASTER;
-
-    host->arch->hi2c->Init.DigitalFilter = I2C_DIGITALFILTER_OFF;
-    host->arch->hi2c->Init.AnalogFilter = I2C_ANALOGFILTER_DISABLE;
-    host->arch->hi2c->Init.AutoEnd = I2C_AUTOEND_ENABLE;
-
-    /* Настройка частоты */
-    host->arch->hi2c->Clock.PRESC = 5;
-    host->arch->hi2c->Clock.SCLDEL = 15;
-    host->arch->hi2c->Clock.SDADEL = 15;
-    host->arch->hi2c->Clock.SCLH = 15;
-    host->arch->hi2c->Clock.SCLL = 15;
-
-    if (HAL_I2C_Init(host->arch->hi2c) == HAL_OK)
-    {
-        HAL_USART_Print(&husart0, "I2C init OK\r\n", USART_TIMEOUT_DEFAULT);
+    /* Save data pins and configure them to input */
+    for (int32_t i = 0; i < 8; i++) {
+        data_gpios[i] = host->pins->data[i]->gpio;
+        data_pin_bits[i] = (1 << host->pins->data[i]->pin_num);
+        data_gpios[i]->DIRECTION_IN = data_pin_bits[i];
     }
 }
 
-extern void OV7670_print(char* str)
+void OV7670_print(char* str)
 {
     USART_Print(str);
 }
 
 int OV7670_read_register(void* platform, uint8_t reg)
 {
-    int val = -1;
-    int ret = SCCB_ReadByte(reg, &val);
-    if (ret) {
-        USART_Print("SCCB_ReadByte() returned ");
-        USART_PrintInt(val);
-        USART_Print("\n\r");
-    }
-    return val;
+    return MIK32_OV7670_read_register(reg);
 }
 
 void OV7670_write_register(void* platform, uint8_t reg, uint8_t value)
 {
+    MIK32_OV7670_write_register(reg, value);
+}
+
+void MIK32_OV7670_write_register(uint8_t reg, uint8_t value)
+{
     int ret = SCCB_WriteByte(reg, value);
     if (ret) {
         USART_Print("SCCB_WriteByte() returned ");
-        USART_PrintInt(val);
+        USART_PrintInt(ret);
         USART_Print("\n\r");
+    }
+}
+
+int MIK32_OV7670_read_register(uint8_t reg)
+{
+    uint8_t val = -1;
+    int ret = SCCB_ReadByte(reg, &val);
+    if (ret) {
+        USART_Print("SCCB_ReadByte() returned ");
+        USART_PrintInt(ret);
+        USART_Print("\n\r");
+    }
+    return (int)val;
+}
+
+void OV7670_capture(uint32_t* dest, uint16_t width, uint16_t height,
+                           volatile uint32_t* vsync_reg, uint32_t vsync_bit,
+                           volatile uint32_t* hsync_reg, uint32_t hsync_bit)
+{
+    uint8_t* mik_dest = (uint8_t*)dest;
+    while (*vsync_reg & vsync_bit)
+        ; // Wait for VSYNC low (frame end)
+    OV7670_disable_interrupts();
+    while (!(*vsync_reg & vsync_bit))
+        ; // Wait for VSYNC high (frame start)
+
+    for (uint16_t y = 0; y < height; y++) { // For each row...
+    while (*hsync_reg & hsync_bit)
+        ; //  Wait for HSYNC low (row end)
+    while (!(*hsync_reg & hsync_bit))
+        ;                               //  Wait for HSYNC high (row start)
+    for (int x = 0; x < width; x++) { //   For each column pair...
+        /* Wait for clock */
+        while (!(PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM)));
+        /* Read data */
+            *mik_dest = ov7670_read_pixel();
+        while (PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM));
+    }
     }
 }

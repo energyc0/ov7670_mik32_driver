@@ -1,7 +1,7 @@
 #include "uart.h"
 #include "mik32_hal_usart.h"
 
-USART_HandleTypeDef husart0;
+static USART_HandleTypeDef husart0;
 
 static int32_t printIntStr(char* buf, int64_t num)
 {
@@ -77,9 +77,9 @@ void USART_Print(char* str)
     HAL_USART_Print(&husart0, str, USART_TIMEOUT_DEFAULT);
 }
 
-void HAL_USART_PrintInt(int64_t num)
+void USART_PrintInt(int64_t val)
 {
     char buf[16];
-    printIntStr(buf, num);
+    printIntStr(buf, val);
     USART_Print(buf);
 }

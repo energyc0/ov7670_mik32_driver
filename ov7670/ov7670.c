@@ -20,6 +20,7 @@
 extern void OV7670_print(char* str);
 extern int OV7670_read_register(void* platform, uint8_t reg);
 extern void OV7670_write_register(void* platform, uint8_t reg, uint8_t value);
+extern OV7670_status OV7670_arch_begin(OV7670_host* host);
 
 // UTILITY FUNCTIONS -------------------------------------------------------
 
@@ -180,13 +181,13 @@ OV7670_status OV7670_begin(OV7670_host* host, OV7670_colorspace colorspace,
 
   // ENABLE AND/OR RESET CAMERA --------------------------------------------
 
-  if (host->pins->enable >= 0) { // Enable pin defined?
+  if (host->pins->enable != NULL) { // Enable pin defined?
     OV7670_pin_output(host->pins->enable)
         OV7670_pin_write(host->pins->enable, 0); // PWDN low (enable)
     OV7670_delay_ms(300);
   }
 
-  if (host->pins->reset >= 0) { // Hard reset pin defined?
+  if (host->pins->reset != NULL) { // Hard reset pin defined?
     OV7670_pin_output(host->pins->reset);
     OV7670_pin_write(host->pins->reset, 0);
     OV7670_delay_ms(1);
