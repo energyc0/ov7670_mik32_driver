@@ -3,6 +3,7 @@
 #include "mik32_hal_i2c.h"
 #include <stdint.h>
 
+/* PCC_GPIO_1_CLK must be enabled */
 void SCCB_Init();
 
 /* Write byte to OV7670 and return 0 on success. */
