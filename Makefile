@@ -5,7 +5,9 @@ BUILD_DIR=build
 FIRMWARE=$(BUILD_DIR)/sources/mik32_firmware
 
 SERIAL_BAUDRATE=115200
-SERIAL_PORT=/dev/ttyUSB0
+SERIAL_PORT=/dev/ttyUSB2
+
+SOURCES:=$(shell find . -type f \( -name '*.c' -o -name '*.h' -o -name '*.S' \) -not -path ./$(BUILD_DIR))
 
 all: $(FIRMWARE).hex
 
@@ -15,7 +17,7 @@ $(FIRMWARE).bin: $(FIRMWARE).elf
 $(FIRMWARE).hex: $(FIRMWARE).elf
 	${TOOLCHAIN_PREFIX}-objcopy -O ihex ${FIRMWARE}.elf ${FIRMWARE}.hex
 
-$(FIRMWARE).elf: $(BUILD_DIR)
+$(FIRMWARE).elf: $(SOURCES) $(BUILD_DIR)
 	cmake --build $(BUILD_DIR)
 
 $(BUILD_DIR):

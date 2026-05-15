@@ -1,4 +1,5 @@
 #include "arch/mik32.h"
+#include "mik32_hal.h"
 #include "mik32_hal_gpio.h"
 #include "mik32_hal_pcc.h"
 #include "mik32_hal_usart.h"
@@ -6,16 +7,19 @@
 #include "mik32_hal_ssd1306.h"
 #include "ov7670.h"
 #include "arch/sccb.h"
+#include "arch/i2c_bitbang.h"
 #include "arch/uart.h"
+#include <stdint.h>
 
 /* 
  * Pins for ov7670 on MIK32 ELBEAR UNO:
- * D0-D7 are D4-D11
+ * D0-D6 are D4-D10
+ * D7 is D12
  * SIOC is SCL
  * SIOD is SDA
- * HREF is A4
- * VSYNC is A5
- * XCLK is D13
+ * HREF is A0
+ * VSYNC is A1
+ * XCLK is D11
  * PCLK is D3
  * RESET is 3.3V
  * PWDN is GND
@@ -56,11 +60,11 @@ static Pin d5 = {
 };
 static Pin d6 = {
     .gpio = GPIO_1,
-    .pin_num = 3
+    .pin_num = 1
 };
 static Pin d7 = {
     .gpio = GPIO_1,
-    .pin_num = 1
+    .pin_num = 0
 };
 static Pin xclk = {
     .gpio = XCLK_PIN_GPIO,
@@ -72,11 +76,11 @@ static Pin pclk = {
 };
 static Pin vsync = {
     .gpio = GPIO_1,
-    .pin_num = 5
+    .pin_num = 7
 };
 static Pin href = {
     .gpio = GPIO_1,
-    .pin_num = 7
+    .pin_num = 5
 };
 
 static void SystemClock_Config();
@@ -106,19 +110,23 @@ int main()
         HAL_USART_Print(&husart0, "Failed to initialize camera!", USART_TIMEOUT_DEFAULT);
         while (1);
     }
-
-    /* Debug prints */
-    uint8_t pid = MIK32_OV7670_read_register(OV7670_REG_PID); // Should be 0x76
-    uint8_t ver = MIK32_OV7670_read_register(OV7670_REG_VER); // Should be 0x73
-    USART_Print("PID: ");
-    USART_PrintInt(pid);
-    USART_Print(" and VER: ");
-    USART_PrintInt(ver);
-    USART_Print("\r\n");
+    
+    HAL_DelayMs(300);
     
     while (1) {
         GPIO_2->OUTPUT ^= GPIO_PIN_7;
-        
+        /* Debug prints */
+        uint8_t pid = MIK32_OV7670_read_register(OV7670_REG_PID); // Should be 0x76
+        uint8_t ver = MIK32_OV7670_read_register(OV7670_REG_VER); // Should  be 0x73
+        uint8_t mid_high = MIK32_OV7670_read_register(OV7670_REG_MIDH);
+        uint8_t mid_low = MIK32_OV7670_read_register(OV7670_REG_MIDL);
+        USART_Print("PID: ");
+        USART_PrintInt(pid);
+        USART_Print(", VER: ");
+        USART_PrintInt(ver);
+        USART_Print(", MID: ");
+        USART_PrintInt(mid_low | (mid_high << 8));
+        USART_Print("\r\n");
         HAL_DelayMs(1000);
     }
 }

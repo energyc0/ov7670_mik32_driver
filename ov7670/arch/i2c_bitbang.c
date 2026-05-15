@@ -37,9 +37,8 @@ __attribute__((section(".ram_text"))) static inline uint8_t I2C_BitBang_ReadBit(
 {
     uint8_t bit;
 
-    SDA_HIGH();
-    I2C_DELAY();
     SDA_INPUT();
+    I2C_DELAY();
     SCL_HIGH();
     I2C_DELAY();
 

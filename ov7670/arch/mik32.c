@@ -1,5 +1,6 @@
 #include "arch/mik32.h"
 #include "arch/uart.h"
+#include "mik32_hal_timer16.h"
 #include "ov7670.h"
 
 #include "gpio.h"
@@ -9,6 +10,7 @@
 #include "mik32_hal_irq.h"
 #include "mik32_memory_map.h"
 #include "timer32.h"
+#include "timer16.h"
 #include "sccb.h"
 #include <stdint.h>
 
@@ -85,12 +87,43 @@ void digitalWrite(OV7670_pin pin, uint8_t hi)
 OV7670_status OV7670_arch_begin(OV7670_host* host) {
     configure_pins(host);
     timer_init();
-    
+    // Camera reset
+    MIK32_OV7670_write_register(OV7670_REG_COM7, OV7670_COM7_RESET);
+
     return OV7670_STATUS_OK;
 }
 
 static void timer_init()
 {
+    Timer16_HandleTypeDef htimer16_1;
+    htimer16_1.Instance = TIMER16_1;
+
+    /* Настройка тактирования */
+    htimer16_1.Clock.Source = TIMER16_SOURCE_INTERNAL_SYSTEM;
+    htimer16_1.CountMode = TIMER16_COUNTMODE_INTERNAL; /* При тактировании от Input1 не имеет значения */
+    htimer16_1.Clock.Prescaler = TIMER16_PRESCALER_1;
+    htimer16_1.ActiveEdge = TIMER16_ACTIVEEDGE_RISING; /* Выбирается при тактировании от Input1 */
+
+    /* Настройка режима обновления регистра ARR и CMP */
+    htimer16_1.Preload = TIMER16_PRELOAD_AFTERWRITE;
+
+    /* Настройка триггера */
+    htimer16_1.Trigger.Source = TIMER16_TRIGGER_TIM1_GPIO1_9;
+    htimer16_1.Trigger.ActiveEdge = TIMER16_TRIGGER_ACTIVEEDGE_SOFTWARE; /* При использовании триггера значение должно быть отлично от software */
+    htimer16_1.Trigger.TimeOut = TIMER16_TIMEOUT_DISABLE;                /* Разрешить повторное срабатывание триггера */
+
+    /* Настройки фильтра */
+    htimer16_1.Filter.ExternalClock = TIMER16_FILTER_NONE;
+    htimer16_1.Filter.Trigger = TIMER16_FILTER_NONE;
+
+    /* Настройка режима энкодера */
+    htimer16_1.EncoderMode = TIMER16_ENCODER_DISABLE;
+
+    htimer16_1.Waveform.Enable = TIMER16_WAVEFORM_GENERATION_ENABLE;
+    htimer16_1.Waveform.Polarity = TIMER16_WAVEFORM_POLARITY_NONINVERTED;
+
+    HAL_Timer16_Init(&htimer16_1);
+    HAL_Timer16_StartPWM(&htimer16_1, XCLK_TIMER_TOP, XCLK_TIMER_TOP/2);
     /* 
      * Connect XCLK pin to TIMER2_0_CH0 for clock signals generation
      * XCLK is PORT_1_0 pin.
@@ -99,7 +132,7 @@ static void timer_init()
     /* Configure timer */
     PM->CLK_APB_P_SET = PM_CLOCK_APB_P_TIMER32_2_M;
     XCLK_TIMER->ENABLE = 0;
-    XCLK_TIMER->TOP = OV7670_XCLK_HZ;
+    XCLK_TIMER->TOP = XCLK_TIMER_TOP;
     XCLK_TIMER->PRESCALER = 0;
     XCLK_TIMER->CONTROL =
         TIMER32_CONTROL_MODE_UP_M | TIMER32_CONTROL_CLOCK_PRESCALER_M;
@@ -107,7 +140,7 @@ static void timer_init()
     XCLK_TIMER->INT_CLEAR = 0xFFFFFFFF;
 
     /* Duty = 50% */
-    XCLK_TIMER->CHANNELS[XCLK_TIMER_CHANNEL].OCR = OV7670_XCLK_HZ/2;
+    XCLK_TIMER->CHANNELS[XCLK_TIMER_CHANNEL].OCR = XCLK_TIMER->TOP/2;
     XCLK_TIMER->CHANNELS[XCLK_TIMER_CHANNEL].CNTRL =
         TIMER32_CH_CNTRL_MODE_PWM_M | TIMER32_CH_CNTRL_ENABLE_M;
 
@@ -121,7 +154,7 @@ static void timer_init()
     /* Configure timer */
     PM->CLK_APB_P_SET = PM_CLOCK_APB_P_TIMER32_1_M;
     PCLK_TIMER->ENABLE = 0;
-    PCLK_TIMER->TOP = OV7670_PCLK_HZ;
+    PCLK_TIMER->TOP = PCLK_TIMER_TOP;
     PCLK_TIMER->PRESCALER = 0;
     PCLK_TIMER->CONTROL =
         TIMER32_CONTROL_MODE_UP_M | TIMER32_CONTROL_CLOCK_PRESCALER_M;
@@ -129,7 +162,7 @@ static void timer_init()
     PCLK_TIMER->INT_CLEAR = 0xFFFFFFFF;
     
     /* Duty = 50% */
-    PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].ICR = OV7670_PCLK_HZ/2;
+    PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].ICR = (PCLK_TIMER->TOP+1)/2;
     /* Capture mode */
     PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].CNTRL =
         (TIMER32_CH_CNTRL_MODE_CAPTURE_M 
@@ -166,7 +199,7 @@ void OV7670_write_register(void* platform, uint8_t reg, uint8_t value)
 
 void MIK32_OV7670_write_register(uint8_t reg, uint8_t value)
 {
-    int ret = SCCB_WriteByte(reg, value);
+    int ret = SCCB_WriteReg(reg, value);
     if (ret) {
         USART_Print("SCCB_WriteByte() returned ");
         USART_PrintInt(ret);
@@ -177,7 +210,7 @@ void MIK32_OV7670_write_register(uint8_t reg, uint8_t value)
 int MIK32_OV7670_read_register(uint8_t reg)
 {
     uint8_t val = -1;
-    int ret = SCCB_ReadByte(reg, &val);
+    int ret = SCCB_ReadReg(reg, &val);
     if (ret) {
         USART_Print("SCCB_ReadByte() returned ");
         USART_PrintInt(ret);
@@ -204,9 +237,10 @@ void OV7670_capture(uint32_t* dest, uint16_t width, uint16_t height,
         ;                               //  Wait for HSYNC high (row start)
     for (int x = 0; x < width; x++) { //   For each column pair...
         /* Wait for clock */
-        while (!(PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM)));
+        while (!(PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM)))
+        ;
         /* Read data */
-            *mik_dest = ov7670_read_pixel();
+        *mik_dest = ov7670_read_pixel();
         while (PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM));
     }
     }
