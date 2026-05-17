@@ -87,43 +87,12 @@ void digitalWrite(OV7670_pin pin, uint8_t hi)
 OV7670_status OV7670_arch_begin(OV7670_host* host) {
     configure_pins(host);
     timer_init();
-    // Camera reset
-    MIK32_OV7670_write_register(OV7670_REG_COM7, OV7670_COM7_RESET);
 
     return OV7670_STATUS_OK;
 }
 
 static void timer_init()
 {
-    Timer16_HandleTypeDef htimer16_1;
-    htimer16_1.Instance = TIMER16_1;
-
-    /* Настройка тактирования */
-    htimer16_1.Clock.Source = TIMER16_SOURCE_INTERNAL_OSC32M;
-    htimer16_1.CountMode = TIMER16_COUNTMODE_INTERNAL; /* При тактировании от Input1 не имеет значения */
-    htimer16_1.Clock.Prescaler = TIMER16_PRESCALER_1;
-    htimer16_1.ActiveEdge = TIMER16_ACTIVEEDGE_RISING; /* Выбирается при тактировании от Input1 */
-
-    /* Настройка режима обновления регистра ARR и CMP */
-    htimer16_1.Preload = TIMER16_PRELOAD_AFTERWRITE;
-
-    /* Настройка триггера */
-    htimer16_1.Trigger.Source = TIMER16_TRIGGER_TIM1_GPIO1_9;
-    htimer16_1.Trigger.ActiveEdge = TIMER16_TRIGGER_ACTIVEEDGE_SOFTWARE; /* При использовании триггера значение должно быть отлично от software */
-    htimer16_1.Trigger.TimeOut = TIMER16_TIMEOUT_DISABLE;                /* Разрешить повторное срабатывание триггера */
-
-    /* Настройки фильтра */
-    htimer16_1.Filter.ExternalClock = TIMER16_FILTER_NONE;
-    htimer16_1.Filter.Trigger = TIMER16_FILTER_NONE;
-
-    /* Настройка режима энкодера */
-    htimer16_1.EncoderMode = TIMER16_ENCODER_DISABLE;
-
-    htimer16_1.Waveform.Enable = TIMER16_WAVEFORM_GENERATION_ENABLE;
-    htimer16_1.Waveform.Polarity = TIMER16_WAVEFORM_POLARITY_NONINVERTED;
-
-    HAL_Timer16_Init(&htimer16_1);
-    HAL_Timer16_StartPWM(&htimer16_1, 1, 1);
     /* 
      * Connect XCLK pin to TIMER2_0_CH0 for clock signals generation
      * XCLK is PORT_1_0 pin.
@@ -147,12 +116,14 @@ static void timer_init()
 
     XCLK_TIMER->ENABLE = 1;
 
+    PCLK_PIN_GPIO->DIRECTION_IN = (1 << PCLK_PIN_NUM);
     /* 
      * Connect PCLK pin to TIMER1_0_CH0 for clock signals generation
      * PCLK is PORT_0_0 pin.
      */
-    PAD_CONFIG->PORT_0_CFG |= 2 << (PCLK_PIN_NUM * 2);
-    /* Configure timer */
+    //PAD_CONFIG->PORT_0_CFG |= 2 << (PCLK_PIN_NUM * 2);
+    // Configure timer 
+    /*
     PM->CLK_APB_P_SET = PM_CLOCK_APB_P_TIMER32_1_M;
     PCLK_TIMER->ENABLE = 0;
     PCLK_TIMER->TOP = PCLK_TIMER_TOP;
@@ -162,15 +133,16 @@ static void timer_init()
     PCLK_TIMER->INT_MASK = 0;
     PCLK_TIMER->INT_CLEAR = 0xFFFFFFFF;
     
-    /* Duty = 50% */
+    // Duty = 50% 
     PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].ICR = (PCLK_TIMER->TOP+1)/2;
-    /* Capture mode */
+    // Capture mode
     PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].CNTRL =
         (TIMER32_CH_CNTRL_MODE_CAPTURE_M 
             | TIMER32_CH_CNTRL_ENABLE_M 
             | TIMER32_CH_CNTRL_CAPTURE_POS_M) 
             & (~TIMER32_CH_CNTRL_DIR_M);
     PCLK_TIMER->ENABLE = 1;
+    */
 }
 
 static void configure_pins(OV7670_host* host)

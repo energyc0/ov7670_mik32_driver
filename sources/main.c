@@ -13,14 +13,13 @@
 
 /* 
  * Pins for ov7670 on MIK32 ELBEAR UNO:
- * D0-D6 are D4-D10
- * D7 is D12
+ * D0-D7 are D2-D9
  * SIOC is SCL
  * SIOD is SDA
  * HREF is A0
  * VSYNC is A1
- * XCLK is D2
- * PCLK is D3
+ * XCLK is D10
+ * PCLK is D11
  * RESET is 3.3V
  * PWDN is GND
  */
@@ -36,35 +35,35 @@ static Pin sda = {
 
 static Pin d0 = {
     .gpio = GPIO_0,
-    .pin_num = 8
+    .pin_num = 10
 };
 static Pin d1 = {
     .gpio = GPIO_0,
-    .pin_num = 1
+    .pin_num = 0
 };
 static Pin d2 = {
     .gpio = GPIO_0,
-    .pin_num = 2
+    .pin_num = 8
 };
 static Pin d3 = {
+    .gpio = GPIO_0,
+    .pin_num = 1
+};
+static Pin d4 = {
+    .gpio = GPIO_0,
+    .pin_num = 2
+};
+static Pin d5 = {
     .gpio = GPIO_1,
     .pin_num = 8
 };
-static Pin d4 = {
+static Pin d6 = {
     .gpio = GPIO_1,
     .pin_num = 9
 };
-static Pin d5 = {
+static Pin d7 = {
     .gpio = GPIO_0,
     .pin_num = 3
-};
-static Pin d6 = {
-    .gpio = GPIO_1,
-    .pin_num = 1
-};
-static Pin d7 = {
-    .gpio = GPIO_1,
-    .pin_num = 0
 };
 static Pin xclk = {
     .gpio = XCLK_PIN_GPIO,
@@ -87,6 +86,7 @@ static void SystemClock_Config();
 static void GPIO_Init();
 static void Pins_Init(OV7670_pins* pins);
 static void Arch_Init(OV7670_arch* arch);
+static int Try_Read_Registers(); // Try read registers of camera, return 1 if successful, 0 on error
 
 USART_HandleTypeDef husart0;
 
@@ -113,20 +113,12 @@ int main()
     
     HAL_DelayMs(300);
     
+    while (!Try_Read_Registers()) {
+        HAL_DelayMs(1000);
+    }
+
     while (1) {
         GPIO_2->OUTPUT ^= GPIO_PIN_7;
-        /* Debug prints */
-        uint8_t pid = MIK32_OV7670_read_register(OV7670_REG_PID); // Should be 0x76
-        uint8_t ver = MIK32_OV7670_read_register(OV7670_REG_VER); // Should  be 0x73
-        uint8_t mid_high = MIK32_OV7670_read_register(OV7670_REG_MIDH);
-        uint8_t mid_low = MIK32_OV7670_read_register(OV7670_REG_MIDL);
-        USART_Print("PID: ");
-        USART_PrintInt(pid);
-        USART_Print(", VER: ");
-        USART_PrintInt(ver);
-        USART_Print(", MID: ");
-        USART_PrintInt(mid_low | (mid_high << 8));
-        USART_Print("\r\n");
         HAL_DelayMs(1000);
     }
 }
@@ -182,6 +174,24 @@ static void Pins_Init(OV7670_pins* pins)
     pins->data[5] = &d5;
     pins->data[6] = &d6;
     pins->data[7] = &d7;
+}
+
+static int Try_Read_Registers()
+{
+    /* Debug prints */
+    uint8_t pid = MIK32_OV7670_read_register(OV7670_REG_PID); // Should be 0x76
+    uint8_t ver = MIK32_OV7670_read_register(OV7670_REG_VER); // Should  be 0x73
+
+    if (pid == 0x76 && ver == 0x73)
+        return 1;
+
+    USART_Print("Failed to read registers (expected 0x76 and 0x73)\r\nPID: ");
+    USART_PrintInt(pid);
+    USART_Print(", VER: ");
+    USART_PrintInt(ver);
+    USART_Print("\r\n");
+
+    return 0;
 }
 
 static void Arch_Init(OV7670_arch* arch)
