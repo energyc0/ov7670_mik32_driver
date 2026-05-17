@@ -27,7 +27,7 @@ int SCCB_ReadReg(uint8_t reg_addr, uint8_t *reg_data)
     I2C_BitBang_WriteByte(reg_addr, 0, 1);
 
     I2C_BitBang_WriteByte(OV7670_READ_ADDR, 1, 0);
-    *reg_data = I2C_BitBang_ReadByte(0, 1);
+    *reg_data = I2C_BitBang_ReadByte(1, 1);
 
     return 0;
 }

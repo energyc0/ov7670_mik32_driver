@@ -5,7 +5,7 @@ BUILD_DIR=build
 FIRMWARE=$(BUILD_DIR)/sources/mik32_firmware
 
 SERIAL_BAUDRATE=115200
-SERIAL_PORT=/dev/ttyUSB2
+SERIAL_PORT=/dev/ttyUSB1
 
 SOURCES:=$(shell find . -type f \( -name '*.c' -o -name '*.h' -o -name '*.S' \) -not -path ./$(BUILD_DIR))
 
