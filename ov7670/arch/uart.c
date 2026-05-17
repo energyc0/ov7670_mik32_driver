@@ -1,4 +1,5 @@
 #include "uart.h"
+#include "mik32_hal_timer16.h"
 #include "mik32_hal_usart.h"
 
 static USART_HandleTypeDef husart0;
@@ -82,4 +83,9 @@ void USART_PrintInt(int64_t val)
     char buf[16];
     printIntStr(buf, val);
     USART_Print(buf);
+}
+
+void USART_WriteData(char* buf, uint32_t count)
+{
+    HAL_USART_Write(&husart0, buf, count, USART_TIMEOUT_DEFAULT);
 }
