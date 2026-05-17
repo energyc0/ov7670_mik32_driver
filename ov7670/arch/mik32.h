@@ -31,13 +31,14 @@ void digitalWrite(OV7670_pin pin, uint8_t hi);
 
 #define PCLK_PIN_NUM (1)
 #define PCLK_PIN_GPIO (GPIO_1)
-//#define PCLK_TIMER (TIMER32_1)
-//#define PCLK_TIMER_CHANNEL (0)
 
 #define OV7670_XCLK_HZ (XCLK_FREQUENCY)
 #define OV7670_PCLK_HZ (OV7670_XCLK_HZ) // 30 FPS
 #define PCLK_TIMER_TOP (MIK32_SYSTEM_FREQ_HZ / OV7670_PCLK_HZ)
 #define OV7670_FPS (30)
+
+#define CAMERA_WIDTH (40)
+#define CAMERA_HEIGHT (30)
 
 typedef struct {
     I2C_HandleTypeDef* hi2c;
