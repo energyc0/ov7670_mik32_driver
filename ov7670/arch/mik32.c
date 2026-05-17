@@ -99,7 +99,7 @@ static void timer_init()
     htimer16_1.Instance = TIMER16_1;
 
     /* Настройка тактирования */
-    htimer16_1.Clock.Source = TIMER16_SOURCE_INTERNAL_SYSTEM;
+    htimer16_1.Clock.Source = TIMER16_SOURCE_INTERNAL_OSC32M;
     htimer16_1.CountMode = TIMER16_COUNTMODE_INTERNAL; /* При тактировании от Input1 не имеет значения */
     htimer16_1.Clock.Prescaler = TIMER16_PRESCALER_1;
     htimer16_1.ActiveEdge = TIMER16_ACTIVEEDGE_RISING; /* Выбирается при тактировании от Input1 */
@@ -123,16 +123,17 @@ static void timer_init()
     htimer16_1.Waveform.Polarity = TIMER16_WAVEFORM_POLARITY_NONINVERTED;
 
     HAL_Timer16_Init(&htimer16_1);
-    HAL_Timer16_StartPWM(&htimer16_1, XCLK_TIMER_TOP, XCLK_TIMER_TOP/2);
+    HAL_Timer16_StartPWM(&htimer16_1, 1, 1);
     /* 
      * Connect XCLK pin to TIMER2_0_CH0 for clock signals generation
      * XCLK is PORT_1_0 pin.
      */
     PAD_CONFIG->PORT_1_CFG |= 2 << (XCLK_PIN_NUM * 2);
+    PAD_CONFIG->PORT_1_DS |= (XCLK_PIN_NUM * 2);
     /* Configure timer */
     PM->CLK_APB_P_SET = PM_CLOCK_APB_P_TIMER32_2_M;
     XCLK_TIMER->ENABLE = 0;
-    XCLK_TIMER->TOP = XCLK_TIMER_TOP;
+    XCLK_TIMER->TOP = 1;
     XCLK_TIMER->PRESCALER = 0;
     XCLK_TIMER->CONTROL =
         TIMER32_CONTROL_MODE_UP_M | TIMER32_CONTROL_CLOCK_PRESCALER_M;
@@ -140,7 +141,7 @@ static void timer_init()
     XCLK_TIMER->INT_CLEAR = 0xFFFFFFFF;
 
     /* Duty = 50% */
-    XCLK_TIMER->CHANNELS[XCLK_TIMER_CHANNEL].OCR = XCLK_TIMER->TOP/2 + 1;
+    XCLK_TIMER->CHANNELS[XCLK_TIMER_CHANNEL].OCR = 1;
     XCLK_TIMER->CHANNELS[XCLK_TIMER_CHANNEL].CNTRL =
         TIMER32_CH_CNTRL_MODE_PWM_M | TIMER32_CH_CNTRL_ENABLE_M;
 
