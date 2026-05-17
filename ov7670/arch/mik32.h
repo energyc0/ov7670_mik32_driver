@@ -26,7 +26,7 @@ void digitalWrite(OV7670_pin pin, uint8_t hi);
 #define XCLK_PIN_GPIO (GPIO_1)
 #define XCLK_TIMER (TIMER32_2)
 #define XCLK_TIMER_CHANNEL (3)
-#define XCLK_FREQUENCY (800000UL)
+#define XCLK_FREQUENCY (8000000UL)
 #define XCLK_TIMER_TOP ((MIK32_SYSTEM_FREQ_HZ / XCLK_FREQUENCY)-1)
 
 #define PCLK_PIN_NUM (0)
