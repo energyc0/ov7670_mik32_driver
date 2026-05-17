@@ -20,12 +20,13 @@ static int32_t data_pin_bits[8];
 static void timer_init();
 static void configure_pins(OV7670_host* host);
 
-static inline uint8_t ov7670_read_pixel()
+__attribute__((section(".ram_text"))) static inline uint8_t ov7670_read_pixel()
 {
     uint8_t byte = 0;
     for (int32_t i = 0; i < 8; i++) {
         byte <<= 1;
-        byte |= (data_gpios[i]->STATE & data_pin_bits[i]) ? 1 : 0;
+        if ((data_gpios[i]->STATE & data_pin_bits[i]))
+            byte |= 1;
     }
 
     return byte;
@@ -167,7 +168,6 @@ __attribute__((section(".ram_text"))) void OV7670_capture(uint32_t* dest, uint16
     // reading pixel by pixel
     uint8_t* mik_dest = (uint8_t*)dest;
     width <<= 1;
-    height <<= 1;
 
     while (*vsync_reg & vsync_bit)
         ; // Wait for VSYNC low (frame end)
