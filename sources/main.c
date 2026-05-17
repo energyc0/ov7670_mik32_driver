@@ -10,6 +10,7 @@
 #include "arch/i2c_bitbang.h"
 #include "arch/uart.h"
 #include <stdint.h>
+#include <sys/_intsup.h>
 
 /* 
  * Pins for ov7670 on MIK32 ELBEAR UNO:
@@ -32,7 +33,6 @@ static Pin sda = {
     .gpio = GPIO_1,
     .pin_num = 12
 };
-
 static Pin d0 = {
     .gpio = GPIO_0,
     .pin_num = 10
@@ -75,11 +75,11 @@ static Pin pclk = {
 };
 static Pin vsync = {
     .gpio = GPIO_1,
-    .pin_num = 7
+    .pin_num = 0
 };
 static Pin href = {
     .gpio = GPIO_1,
-    .pin_num = 5
+    .pin_num = 2
 };
 
 static void SystemClock_Config();
@@ -88,7 +88,17 @@ static void Pins_Init(OV7670_pins* pins);
 static void Arch_Init(OV7670_arch* arch);
 static int Try_Read_Registers(); // Try read registers of camera, return 1 if successful, 0 on error
 
-USART_HandleTypeDef husart0;
+static void debug_framebuffer(char* buf, uint32_t size)
+{
+    USART_Print("Framebuffer debug:\r\n");
+    for (int i = 0; i < size; i++) {
+        USART_PrintInt(buf[i]);
+        USART_Print(", ");
+    }
+    USART_Print("\r\n");
+}
+
+static uint16_t framebuffer[CAMERA_WIDTH * CAMERA_HEIGHT];
 
 int main()
 {
@@ -105,9 +115,10 @@ int main()
     OV7670_host host;
     host.pins = &pins;
     host.arch = &arch;
+    host.platform = &host;
 
-    if (OV7670_begin(&host, OV7670_COLOR_YUV, OV7670_SIZE_DIV16, 30.0) != OV7670_STATUS_OK) {
-        HAL_USART_Print(&husart0, "Failed to initialize camera!", USART_TIMEOUT_DEFAULT);
+    if (OV7670_begin(&host, OV7670_COLOR_RGB, OV7670_SIZE_DIV16, 1.0) != OV7670_STATUS_OK) {
+        USART_Print("Failed to initialize camera!");
         while (1);
     }
     
@@ -117,8 +128,38 @@ int main()
         HAL_DelayMs(1000);
     }
 
+
+    OV7670_test_pattern(&host, OV7670_TEST_PATTERN_COLOR_BAR);
+    /*
+    for (int i = 0; i < 100; i++) {
+        uint32_t vsync_state = (vsync.gpio->STATE & (1  << vsync.pin_num));
+        uint32_t href_state = (href.gpio->STATE & (1  << href.pin_num));
+        uint32_t pclk_state = (pclk.gpio->STATE & (1  << pclk.pin_num));
+        USART_Print("VSYNC state: ");
+        USART_PrintInt(vsync_state);
+
+        USART_Print(", HREF state: ");
+        USART_PrintInt(href_state);
+
+        USART_Print(", PCLK state: ");
+        USART_PrintInt(pclk_state);
+        USART_Print("\r\n");
+        uint8_t reg = MIK32_OV7670_read_register(OV7670_REG_COM7);
+        USART_Print("COM7: ");
+        USART_PrintInt(reg);
+        USART_Print("\r\n");
+        HAL_DelayMs(100);
+    }
+    */
     while (1) {
+        OV7670_capture((uint32_t*)framebuffer,
+        CAMERA_WIDTH, CAMERA_HEIGHT,
+        &vsync.gpio->STATE, 1 << vsync.pin_num,
+        &href.gpio->STATE, 1 << href.pin_num);
         GPIO_2->OUTPUT ^= GPIO_PIN_7;
+        USART_Print("Captured frame!\r\n");
+        //USART_WriteData((char*)framebuffer, sizeof(framebuffer));
+        debug_framebuffer((char*)framebuffer, sizeof(framebuffer));
         HAL_DelayMs(1000);
     }
 }
@@ -143,17 +184,13 @@ static void SystemClock_Config()
 
 static void GPIO_Init()
 {
-    GPIO_InitTypeDef GPIO_InitStruct = { 0 };
-
     __HAL_PCC_GPIO_0_CLK_ENABLE();
     __HAL_PCC_GPIO_1_CLK_ENABLE();
     __HAL_PCC_GPIO_2_CLK_ENABLE();
     __HAL_PCC_GPIO_IRQ_CLK_ENABLE();
 
-    GPIO_InitStruct.Pin = GPIO_PIN_7;
-    GPIO_InitStruct.Mode = HAL_GPIO_MODE_GPIO_OUTPUT;
-    GPIO_InitStruct.Pull = HAL_GPIO_PULL_NONE;
-    HAL_GPIO_Init(GPIO_2, &GPIO_InitStruct);
+    // LED pin
+    GPIO_2->DIRECTION_OUT = (1 << 7);
 }
 
 static void Pins_Init(OV7670_pins* pins)
