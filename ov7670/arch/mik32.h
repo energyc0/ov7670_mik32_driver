@@ -22,12 +22,12 @@ void digitalWrite(OV7670_pin pin, uint8_t hi);
 #define OV7670_disable_interrupts() HAL_IRQ_DisableInterrupts()
 #define OV7670_enable_interrupts() HAL_IRQ_EnableInterrupts()
 
-#define XCLK_PIN_NUM (4)
+#define XCLK_PIN_NUM (3)
 #define XCLK_PIN_GPIO (GPIO_1)
 #define XCLK_TIMER (TIMER32_2)
 #define XCLK_TIMER_CHANNEL (3)
-#define XCLK_FREQUENCY (1600000UL)
-#define XCLK_TIMER_TOP (MIK32_SYSTEM_FREQ_HZ / XCLK_FREQUENCY)
+#define XCLK_FREQUENCY (800000UL)
+#define XCLK_TIMER_TOP ((MIK32_SYSTEM_FREQ_HZ / XCLK_FREQUENCY)-1)
 
 #define PCLK_PIN_NUM (0)
 #define PCLK_PIN_GPIO (GPIO_0)

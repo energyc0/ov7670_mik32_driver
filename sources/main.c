@@ -19,7 +19,7 @@
  * SIOD is SDA
  * HREF is A0
  * VSYNC is A1
- * XCLK is D11
+ * XCLK is D2
  * PCLK is D3
  * RESET is 3.3V
  * PWDN is GND
