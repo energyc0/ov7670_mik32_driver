@@ -10,11 +10,14 @@ RUN apt install -y --no-install-recommends \
     cmake \
     ninja-build \
     python3 \
+    python3-pip \
+    python3-serial \
     openocd \
     picocom \
     zsh \
     clangd-15 \
     clang-format \
+    clang-tidy \
     && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \

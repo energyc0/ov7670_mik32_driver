@@ -20,6 +20,7 @@ string(CONCAT COMMON_FLAGS
     " -Wall"
     " -fsigned-char -ffunction-sections"
     " -DMIK32V2"
+    " -O3"
 )
 
 string(CONCAT C_FLAGS
