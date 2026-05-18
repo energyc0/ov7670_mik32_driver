@@ -30,6 +30,7 @@ void digitalWrite(OV7670_pin pin, uint8_t hi);
 #define XCLK_TIMER_TOP ((MIK32_SYSTEM_FREQ_HZ / XCLK_FREQUENCY)-1)
 
 #define PCLK_PIN_NUM (1)
+#define PCLK_PIN_BIT (1 << (PCLK_PIN_NUM))
 #define PCLK_PIN_GPIO (GPIO_1)
 
 #define OV7670_XCLK_HZ (XCLK_FREQUENCY)
@@ -37,11 +38,12 @@ void digitalWrite(OV7670_pin pin, uint8_t hi);
 #define PCLK_TIMER_TOP (MIK32_SYSTEM_FREQ_HZ / OV7670_PCLK_HZ)
 #define OV7670_FPS (30)
 
-#define CAMERA_WIDTH (40)
-#define CAMERA_HEIGHT (30)
+#define CAMERA_COLORSPACE (OV7670_COLOR_RGB)
+#define CAMERA_DIV_FACTOR (OV7670_SIZE_DIV16)
+#define CAMERA_WIDTH (640 >> CAMERA_DIV_FACTOR)
+#define CAMERA_HEIGHT (480 >> CAMERA_DIV_FACTOR)
 
 typedef struct {
-    I2C_HandleTypeDef* hi2c;
 } OV7670_arch;
 
 extern void OV7670_capture(uint32_t* dest, uint16_t width, uint16_t height,

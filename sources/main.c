@@ -2,25 +2,33 @@
 #include "mik32_hal.h"
 #include "mik32_hal_gpio.h"
 #include "mik32_hal_pcc.h"
+#include "mik32_hal_timer32.h"
 #include "mik32_hal_usart.h"
 #include "mik32_hal_i2c.h"
-#include "mik32_hal_ssd1306.h"
+#include "mik32_memory_map.h"
 #include "ov7670.h"
 #include "arch/sccb.h"
 #include "arch/i2c_bitbang.h"
 #include "arch/uart.h"
 #include <stdint.h>
-#include <sys/_intsup.h>
+#include "scr1_timer.h"
 
 /* 
  * Pins for ov7670 on MIK32 ELBEAR UNO:
- * D0-D7 are D2-D9
- * SIOC is SCL
- * SIOD is SDA
- * HREF is A0
- * VSYNC is A1
- * XCLK is D10
- * PCLK is D11
+ * D0 is D3 - PORT_0_0
+ * D1 is D5 - PORT_0_1
+ * D2 is D6 - PORT_0_2
+ * D3 is D9 - PORT_0_3
+ * D4 is A2 - PORT_0_4
+ * D5 is RX - PORT_0_5
+ * D6 is A4 - PORT_0_9
+ * D7 is D2 - PORT_0_10
+ * SIOC is SCL - PORT_1_13
+ * SIOD is SDA - PORT_1_12
+ * HREF is D13 - PORT_1_2
+ * VSYNC is D12 - PORT_1_0
+ * XCLK is D10 - PORT_1_3
+ * PCLK is D11 - PORT_1_1
  * RESET is 3.3V
  * PWDN is GND
  */
@@ -35,35 +43,35 @@ static Pin sda = {
 };
 static Pin d0 = {
     .gpio = GPIO_0,
-    .pin_num = 10
+    .pin_num = 0
 };
 static Pin d1 = {
     .gpio = GPIO_0,
-    .pin_num = 0
+    .pin_num = 1
 };
 static Pin d2 = {
     .gpio = GPIO_0,
-    .pin_num = 8
+    .pin_num = 2
 };
 static Pin d3 = {
     .gpio = GPIO_0,
-    .pin_num = 1
+    .pin_num = 3
 };
 static Pin d4 = {
     .gpio = GPIO_0,
-    .pin_num = 2
+    .pin_num = 4
 };
 static Pin d5 = {
-    .gpio = GPIO_1,
-    .pin_num = 8
+    .gpio = GPIO_0,
+    .pin_num = 5
 };
 static Pin d6 = {
-    .gpio = GPIO_1,
+    .gpio = GPIO_0,
     .pin_num = 9
 };
 static Pin d7 = {
     .gpio = GPIO_0,
-    .pin_num = 3
+    .pin_num = 10
 };
 static Pin xclk = {
     .gpio = XCLK_PIN_GPIO,
@@ -92,14 +100,17 @@ static void debug_framebuffer(char* buf, uint32_t size)
 {
     USART_Print("Framebuffer debug:\r\n");
     for (int i = 0; i < size; i++) {
-        USART_PrintInt(buf[i]);
-        USART_Print(", ");
+        USART_PrintHex(buf[i]);
+        USART_Print(" ");
     }
     USART_Print("\r\n");
 }
 
-// Pixels + 5 RDY\r\n bits
-static uint16_t framebuffer[CAMERA_WIDTH * CAMERA_HEIGHT + 5];
+static void Send_Framebuffer_Data(uint8_t* framebuffer, uint32_t size)
+{
+    USART_Print("RDY\r\n");
+    USART_WriteData(framebuffer, size);
+}
 
 int main()
 {
@@ -118,27 +129,30 @@ int main()
     host.arch = &arch;
     host.platform = &host;
 
-    if (OV7670_begin(&host, OV7670_COLOR_RGB, OV7670_SIZE_DIV16, 1.0) != OV7670_STATUS_OK) {
+    if (OV7670_begin(&host, CAMERA_COLORSPACE, CAMERA_DIV_FACTOR, 1.0) != OV7670_STATUS_OK) {
         USART_Print("Failed to initialize camera!");
         while (1);
     }
     
     HAL_DelayMs(300);
-    
+    USART_Print("HELLO\r\n");
     while (!Try_Read_Registers()) {
         HAL_DelayMs(1000);
     }
-
     OV7670_test_pattern(&host, OV7670_TEST_PATTERN_COLOR_BAR);
+    USART_Print("PAD_CONFIG->PORT_0_CFG = ");
+    USART_PrintInt(PAD_CONFIG->PORT_0_CFG);
+    USART_Print("\r\n");
+    
+    uint16_t framebuffer[CAMERA_WIDTH * CAMERA_HEIGHT];
     while (1) {
         OV7670_capture((uint32_t*)framebuffer,
         CAMERA_WIDTH, CAMERA_HEIGHT,
         &vsync.gpio->STATE, 1 << vsync.pin_num,
         &href.gpio->STATE, 1 << href.pin_num);
         GPIO_2->OUTPUT ^= GPIO_PIN_7;
-        USART_Print("RDY\r\n");
-        USART_WriteData((char*)framebuffer, sizeof(framebuffer));
-        //debug_framebuffer((char*)framebuffer, sizeof(framebuffer));
+        //Send_Framebuffer_Data((uint8_t*)framebuffer, sizeof(framebuffer));
+        debug_framebuffer((char*)framebuffer, sizeof(framebuffer));
     }
 }
 

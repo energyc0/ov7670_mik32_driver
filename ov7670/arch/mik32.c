@@ -19,23 +19,31 @@ static int32_t data_pin_bits[8];
 
 static void timer_init();
 static void configure_pins(OV7670_host* host);
+static void pin_to_input(OV7670_pin pin);
 
-__attribute__((section(".ram_text"))) static inline uint8_t ov7670_read_byte()
+__attribute__((section(".ram_text"), always_inline))  static inline uint8_t ov7670_read_byte()
 {
-    uint8_t byte = 0;
     /* Wait for clock */
-    while (!(PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM)));
+    while (!(PCLK_PIN_GPIO->STATE & PCLK_PIN_BIT));
+
     /* Read data, OV7670 is MSB */
+    //register uint8_t byte = (gpio_state & 0x3F) | (((gpio_state & 600) >> 3) & 0xC0);
+
+    uint8_t byte = 0;
+
+    register uint32_t gpio_state = GPIO_0->STATE;
     for (int32_t i = 7; i >= 0; i--) {
         byte <<= 1;
-        if ((data_gpios[i]->STATE & data_pin_bits[i]))
+        if ((gpio_state & data_pin_bits[i]))
             byte |= 1;
     }
-    while (PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM));
+
+
+    while (PCLK_PIN_GPIO->STATE & PCLK_PIN_BIT);
     return byte;
 }
 
-__attribute__((section(".ram_text"))) static inline uint16_t ov7670_read_pixel()
+__attribute__((section(".ram_text"), always_inline))  static inline uint16_t ov7670_read_pixel()
 {
     /* OV7670 is MSB, while MIK32 is LSB */
     return ((uint16_t)ov7670_read_byte() << 8) | (uint16_t)ov7670_read_byte();
@@ -67,7 +75,8 @@ static void timer_init()
      * Connect XCLK pin to TIMER2_0_CH0 for clock signals generation
      * XCLK is PORT_1_0 pin.
      */
-    PAD_CONFIG->PORT_1_CFG |= 2 << (XCLK_PIN_NUM * 2);
+    PAD_CONFIG->PORT_1_CFG &= ~(0b11 << (XCLK_PIN_NUM * 2));
+    PAD_CONFIG->PORT_1_CFG |= 0b10 << (XCLK_PIN_NUM * 2);
     /* Configure timer */
     PM->CLK_APB_P_SET = PM_CLOCK_APB_P_TIMER32_2_M;
     XCLK_TIMER->ENABLE = 0;
@@ -84,34 +93,6 @@ static void timer_init()
         TIMER32_CH_CNTRL_MODE_PWM_M | TIMER32_CH_CNTRL_ENABLE_M;
 
     XCLK_TIMER->ENABLE = 1;
-
-    //PCLK_PIN_GPIO->DIRECTION_IN = (1 << PCLK_PIN_NUM);
-    /* 
-     * Connect PCLK pin to TIMER1_0_CH0 for clock signals generation
-     * PCLK is PORT_0_0 pin.
-     */
-    //PAD_CONFIG->PORT_0_CFG |= 2 << (PCLK_PIN_NUM * 2);
-    // Configure timer 
-    /*
-    PM->CLK_APB_P_SET = PM_CLOCK_APB_P_TIMER32_1_M;
-    PCLK_TIMER->ENABLE = 0;
-    PCLK_TIMER->TOP = PCLK_TIMER_TOP;
-    PCLK_TIMER->PRESCALER = 0;
-    PCLK_TIMER->CONTROL =
-        TIMER32_CONTROL_MODE_UP_M | TIMER32_CONTROL_CLOCK_PRESCALER_M;
-    PCLK_TIMER->INT_MASK = 0;
-    PCLK_TIMER->INT_CLEAR = 0xFFFFFFFF;
-    
-    // Duty = 50% 
-    PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].ICR = (PCLK_TIMER->TOP+1)/2;
-    // Capture mode
-    PCLK_TIMER->CHANNELS[PCLK_TIMER_CHANNEL].CNTRL =
-        (TIMER32_CH_CNTRL_MODE_CAPTURE_M 
-            | TIMER32_CH_CNTRL_ENABLE_M 
-            | TIMER32_CH_CNTRL_CAPTURE_POS_M) 
-            & (~TIMER32_CH_CNTRL_DIR_M);
-    PCLK_TIMER->ENABLE = 1;
-    */
 }
 
 static void configure_pins(OV7670_host* host)
@@ -120,17 +101,27 @@ static void configure_pins(OV7670_host* host)
     for (int32_t i = 0; i < 8; i++) {
         data_gpios[i] = host->pins->data[i]->gpio;
         data_pin_bits[i] = (1 << host->pins->data[i]->pin_num);
-        data_gpios[i]->DIRECTION_IN = data_pin_bits[i];
-        if (data_gpios[i] == GPIO_0) {
-            PAD_CONFIG->PORT_0_PUPD |= (0b10 << (host->pins->data[i]->pin_num  * 2));
-        } else {
-            PAD_CONFIG->PORT_1_PUPD |= (0b10 << (host->pins->data[i]->pin_num  * 2));
-        }
+        pin_to_input(host->pins->data[i]);
     }
 
-    host->pins->hsync->gpio->DIRECTION_IN = (1 << host->pins->hsync->pin_num);
-    host->pins->vsync->gpio->DIRECTION_IN = (1 << host->pins->vsync->pin_num);
-    host->pins->pclk->gpio->DIRECTION_IN = (1 << host->pins->pclk->pin_num);
+    pin_to_input(host->pins->hsync);
+    pin_to_input(host->pins->vsync);
+    pin_to_input(host->pins->pclk);
+}
+
+static void pin_to_input(OV7670_pin pin)
+{
+    uint32_t shift = (pin->pin_num  * 2);
+    if (pin->gpio == GPIO_0) {
+        PAD_CONFIG->PORT_0_CFG &= ~(0b11 << shift);
+        PAD_CONFIG->PORT_0_PUPD &= ~(0b11 << shift);
+        //PAD_CONFIG->PORT_0_PUPD |= (0b10 << shift);
+    } else  {
+        PAD_CONFIG->PORT_1_CFG &= ~(0b11 << shift);
+        PAD_CONFIG->PORT_1_PUPD &= ~(0b11 << shift);
+        //PAD_CONFIG->PORT_1_PUPD |= (0b10 << shift);
+    }
+    pin->gpio->DIRECTION_IN = (1 << pin->pin_num);
 }
 
 void OV7670_print(char* str)
@@ -174,15 +165,13 @@ __attribute__((section(".ram_text"))) void OV7670_capture(uint32_t* dest, uint16
                            volatile uint32_t* vsync_reg, uint32_t vsync_bit,
                            volatile uint32_t* hsync_reg, uint32_t hsync_bit)
 {
-    // reading pixel by pixel
     uint16_t* mik_dest = (uint16_t*)dest;
-
-    while (*vsync_reg & vsync_bit)
-        ; // Wait for VSYNC low (frame end)
     OV7670_disable_interrupts();
+
     while (!(*vsync_reg & vsync_bit))
         ; // Wait for VSYNC high (frame start)
-
+    while (*vsync_reg & vsync_bit)
+        ; // Wait for VSYNC low (frame end)
     for (uint16_t y = 0; y < height; y++) { // For each row...
         while (*hsync_reg & hsync_bit)
             ; //  Wait for HSYNC low (row end)
@@ -192,4 +181,5 @@ __attribute__((section(".ram_text"))) void OV7670_capture(uint32_t* dest, uint16
             (*mik_dest++) = ov7670_read_pixel();
         }
     }
+    OV7670_enable_interrupts();
 }

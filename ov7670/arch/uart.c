@@ -1,6 +1,7 @@
 #include "uart.h"
 #include "mik32_hal_timer16.h"
 #include "mik32_hal_usart.h"
+#include <stdint.h>
 
 static USART_HandleTypeDef husart0;
 
@@ -34,7 +35,7 @@ void USART_Init()
 {
     husart0.Instance = UART_0;
     husart0.transmitting = Enable;
-    husart0.receiving = Enable;
+    husart0.receiving = Enable; // For PORT_0_5
     husart0.frame = Frame_8bit;
     husart0.parity_bit = Disable;
     husart0.parity_bit_inversion = Disable;
@@ -45,7 +46,7 @@ void USART_Init()
     husart0.swap = Disable;
     husart0.lbm = Disable;
     husart0.stop_bit = StopBit_1;
-    husart0.mode = Asynchronous_Mode;
+    husart0.mode = Asynchronous_Mode; // For PORT_0_5
     husart0.xck_mode = XCK_Mode3;
     husart0.last_byte_clock = Disable;
     husart0.overwrite = Disable;
@@ -85,7 +86,16 @@ void USART_PrintInt(int64_t val)
     USART_Print(buf);
 }
 
-void USART_WriteData(char* buf, uint32_t count)
+void USART_WriteData(uint8_t* buf, uint32_t count)
 {
-    HAL_USART_Write(&husart0, buf, count, USART_TIMEOUT_DEFAULT);
+    HAL_USART_Write(&husart0, (char*)buf, count, USART_TIMEOUT_DEFAULT);
+}
+
+void USART_PrintHex(uint8_t byte)
+{
+    char buf[] = "0x00";
+    const char hex[] = "0123456789ABCDEF";
+    buf[2] = hex[byte & 0x0F];
+    buf[3] = hex[byte >> 4];;
+    USART_Print(buf);
 }
