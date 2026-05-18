@@ -113,6 +113,5 @@ void I2C_BitBang_Init()
     SCL_OUTPUT();
     SCL_HIGH();
     I2C_DELAY();
-    USART_Print("Bit-Bang I2C Bit-Bang init OK.\r\n");
 }
 

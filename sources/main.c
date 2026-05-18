@@ -98,7 +98,8 @@ static void debug_framebuffer(char* buf, uint32_t size)
     USART_Print("\r\n");
 }
 
-static uint16_t framebuffer[CAMERA_WIDTH * CAMERA_HEIGHT];
+// Pixels + 5 RDY\r\n bits
+static uint16_t framebuffer[CAMERA_WIDTH * CAMERA_HEIGHT + 5];
 
 int main()
 {
@@ -128,39 +129,16 @@ int main()
         HAL_DelayMs(1000);
     }
 
-
     OV7670_test_pattern(&host, OV7670_TEST_PATTERN_COLOR_BAR);
-    /*
-    for (int i = 0; i < 100; i++) {
-        uint32_t vsync_state = (vsync.gpio->STATE & (1  << vsync.pin_num));
-        uint32_t href_state = (href.gpio->STATE & (1  << href.pin_num));
-        uint32_t pclk_state = (pclk.gpio->STATE & (1  << pclk.pin_num));
-        USART_Print("VSYNC state: ");
-        USART_PrintInt(vsync_state);
-
-        USART_Print(", HREF state: ");
-        USART_PrintInt(href_state);
-
-        USART_Print(", PCLK state: ");
-        USART_PrintInt(pclk_state);
-        USART_Print("\r\n");
-        uint8_t reg = MIK32_OV7670_read_register(OV7670_REG_COM7);
-        USART_Print("COM7: ");
-        USART_PrintInt(reg);
-        USART_Print("\r\n");
-        HAL_DelayMs(100);
-    }
-    */
     while (1) {
         OV7670_capture((uint32_t*)framebuffer,
         CAMERA_WIDTH, CAMERA_HEIGHT,
         &vsync.gpio->STATE, 1 << vsync.pin_num,
         &href.gpio->STATE, 1 << href.pin_num);
         GPIO_2->OUTPUT ^= GPIO_PIN_7;
-        USART_Print("Captured frame!\r\n");
-        //USART_WriteData((char*)framebuffer, sizeof(framebuffer));
-        debug_framebuffer((char*)framebuffer, sizeof(framebuffer));
-        HAL_DelayMs(1000);
+        USART_Print("RDY\r\n");
+        USART_WriteData((char*)framebuffer, sizeof(framebuffer));
+        //debug_framebuffer((char*)framebuffer, sizeof(framebuffer));
     }
 }
 

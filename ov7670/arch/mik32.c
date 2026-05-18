@@ -20,16 +20,25 @@ static int32_t data_pin_bits[8];
 static void timer_init();
 static void configure_pins(OV7670_host* host);
 
-__attribute__((section(".ram_text"))) static inline uint8_t ov7670_read_pixel()
+__attribute__((section(".ram_text"))) static inline uint8_t ov7670_read_byte()
 {
     uint8_t byte = 0;
-    for (int32_t i = 0; i < 8; i++) {
+    /* Wait for clock */
+    while (!(PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM)));
+    /* Read data, OV7670 is MSB */
+    for (int32_t i = 7; i >= 0; i--) {
         byte <<= 1;
         if ((data_gpios[i]->STATE & data_pin_bits[i]))
             byte |= 1;
     }
-
+    while (PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM));
     return byte;
+}
+
+__attribute__((section(".ram_text"))) static inline uint16_t ov7670_read_pixel()
+{
+    /* OV7670 is MSB, while MIK32 is LSB */
+    return ((uint16_t)ov7670_read_byte() << 8) | (uint16_t)ov7670_read_byte();
 }
 
 void pinModeOutput(OV7670_pin pin)
@@ -166,8 +175,7 @@ __attribute__((section(".ram_text"))) void OV7670_capture(uint32_t* dest, uint16
                            volatile uint32_t* hsync_reg, uint32_t hsync_bit)
 {
     // reading pixel by pixel
-    uint8_t* mik_dest = (uint8_t*)dest;
-    width <<= 1;
+    uint16_t* mik_dest = (uint16_t*)dest;
 
     while (*vsync_reg & vsync_bit)
         ; // Wait for VSYNC low (frame end)
@@ -176,17 +184,12 @@ __attribute__((section(".ram_text"))) void OV7670_capture(uint32_t* dest, uint16
         ; // Wait for VSYNC high (frame start)
 
     for (uint16_t y = 0; y < height; y++) { // For each row...
-    while (*hsync_reg & hsync_bit)
-        ; //  Wait for HSYNC low (row end)
-    while (!(*hsync_reg & hsync_bit))
-        ;                               //  Wait for HSYNC high (row start)
-    for (int x = 0; x < width; x++) { //   For each column pair...
-        /* Wait for clock */
-        while (!(PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM)))
-            ;
-        /* Read data */
-        (*mik_dest++) = ov7670_read_pixel();
-        while (PCLK_PIN_GPIO->STATE & (1<< PCLK_PIN_NUM));
-    }
+        while (*hsync_reg & hsync_bit)
+            ; //  Wait for HSYNC low (row end)
+        while (!(*hsync_reg & hsync_bit))
+            ;                               //  Wait for HSYNC high (row start)
+        for (uint16_t x = 0; x < width; x++) { //   For each column pair...
+            (*mik_dest++) = ov7670_read_pixel();
+        }
     }
 }
