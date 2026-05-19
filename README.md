@@ -2,7 +2,7 @@
 This is an OV7670 driver for MIK32 ELBEAR ACE-UNO RISC-V microcontroller.
 This project is not completed yet, because there are some bugs with camera. Tests of *"color bars"* are passed, but *"fading color bars"* and *"shiting-1"* are not.
 Driver uses [Adafruit](https://github.com/adafruit/Adafruit_OV7670), [MIK32 HAL](https://github.com/MikronMIK32/mik32-hal) and [MIK32 HAL-shared](https://github.com/MikronMIK32/mik32v2-shared) libraries.
-There was implemented I2C bit-bang for SCCB, becuase hardware I2C cannot handle NACK the way I needed.
+There was implemented I2C bit-bang for SCCB, because hardware I2C cannot handle NACK the way I needed. Also you can use python script **screen_saver.py** to see the image saved in **.ppm** format.
 
 ### PINS SETUP
 Pins for ov7670 on MIK32 ELBEAR UNO:
